@@ -10,17 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/bytedance/sonic/decoder"
 )
 
 const (
 	defoultPermission = 0774
 )
 
-var (
-	ErrNoFiles = errors.New("no files")
-)
 
 type Storage struct {
 	basePath string
@@ -66,7 +61,7 @@ func (s *Storage) PickRandom(userName string) (*storage.Page, error) {
 	}
 
 	if len(files) == 0 {
-		return nil, ErrNoFiles
+		return nil, storage.ErrNoSavedPages
 	}
 
 	rand.Seed(time.Now().UnixNano())
@@ -92,19 +87,19 @@ func (s *Storage) Remove(p *storage.Page) error {
 	return nil
 }
 
-func (s *Storage) IsExist(p *storage.Page) (bool, error) {
+func (s Storage) IsExists(p *storage.Page) (bool, error) {
 	fileName, err := fileName(p)
 	if err != nil {
-		return false, e.Wrap(err, "failed to get file name")
+		return false, e.Wrap(err, "can't check if file exists")
 	}
 
-	filePath := filepath.Join(s.basePath, p.UserName, fileName)
+	path := filepath.Join(s.basePath, p.UserName, fileName)
 
-	switch _, err := os.Stat(filePath) {
+	switch _, err = os.Stat(path); {
 	case errors.Is(err, os.ErrNotExist):
 		return false, nil
 	case err != nil:
-		return false, e.Wrap(err, fmt.Sprintf("failed to get file %s", filePath))
+		return false, e.Wrap(err, fmt.Sprintf("can't check if file %s exists", path))
 	}
 
 	return true, nil
@@ -120,9 +115,11 @@ func (s *Storage) decodePage(filepath string) (*storage.Page, error) {
 
 	var p storage.Page
 
-	if err := gob.NewDecoder(f).Decode(&p); err != nil {
+	if err := gob.NewDecoder(file).Decode(&p); err != nil {
 		return nil, e.Wrap(err, "failed to decode page")
 	}
+
+	return &p, nil
 }
 
 func fileName(p *storage.Page) (string, error) {
